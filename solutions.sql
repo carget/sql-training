@@ -1,0 +1,4 @@
+---1---
+SELECT tutors.tt_id, TUTORS.TT_NAME, COUNT(DISTINCT EDUCATION.ED_STUDENT) as students_count 
+FROM TUTORS LEFT JOIN  EDUCATION ON tutors.TT_ID=education.ED_TUTOR 
+GROUP BY tutors.tt_name, TUTORS.TT_ID;
