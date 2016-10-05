@@ -27,7 +27,22 @@ GROUP BY STUDENTS.ST_ID, STUDENTS.ST_NAME
 ORDER BY STUDENTS.ST_ID;
 
 ---5---
---???
+SELECT st_id, st_name, LISTAGG(sb_name, ',  ') WITHIN GROUP (ORDER BY sb_name DESC), mark_max
+  FROM (
+    SELECT DISTINCT st_id, st_name, subjects.sb_name, mark_max
+      FROM (
+        SELECT students.st_id, students.st_name, MAX(education.ed_mark) AS mark_max
+          FROM students
+            LEFT JOIN education ON students.st_id = education.ed_student
+          GROUP BY students.st_id, students.st_name
+      ) T
+        LEFT JOIN education ON T.st_id = education.ed_student
+        LEFT JOIN subjects ON education.ed_subject = subjects.sb_id
+      WHERE mark_max = education.ed_mark
+        OR mark_max IS NULL
+  )
+  GROUP BY st_id, st_name, mark_max
+  ORDER BY st_id;
 
 ---6---
 SELECT name FROM
@@ -66,7 +81,30 @@ FROM EDUCATION JOIN CLASS_TYPES ON EDUCATION.ED_CLASS_TYPE=CLASS_TYPES.CT_ID
 WHERE ED_MARK IS NOT NULL AND CLASS_TYPES.CT_NAME NOT IN ('Экзамен','Лабораторная работа');
 
 ---8---
---???
+SELECT SB_CL_MAX.YEAR || SB_CL_MAX.MONTH as short_date, LISTAGG(SB_NAME, '; ') WITHIN GROUP (ORDER BY SB_NAME) SN_NAME, MAX(SB_CL_MAX.MAX_CLASSES)
+  FROM (
+    SELECT YEAR, MONTH, MAX(CLASSES) MAX_CLASSES
+      FROM (
+        SELECT EXTRACT(YEAR FROM ED_DATE) YEAR, EXTRACT(MONTH FROM ED_DATE) MONTH, SUBJECTS.SB_NAME, COUNT(ED_ID) CLASSES
+          FROM EDUCATION
+            JOIN SUBJECTS ON EDUCATION.ED_SUBJECT = SUBJECTS.SB_ID
+          WHERE EXTRACT(YEAR FROM ED_DATE) = 2012
+          GROUP BY EXTRACT(YEAR FROM ED_DATE), EXTRACT(MONTH FROM ED_DATE), SUBJECTS.SB_NAME
+      )
+      GROUP BY YEAR, MONTH
+  ) SB_CL_MAX
+    LEFT JOIN (
+      SELECT EXTRACT(YEAR FROM ED_DATE) YEAR, EXTRACT(MONTH FROM ED_DATE) MONTH, SUBJECTS.SB_NAME, COUNT(ED_ID) CLASSES
+        FROM EDUCATION
+          JOIN SUBJECTS ON EDUCATION.ED_SUBJECT = SUBJECTS.SB_ID
+        WHERE EXTRACT(YEAR FROM ED_DATE) = 2012
+        GROUP BY EXTRACT(YEAR FROM ED_DATE), EXTRACT(MONTH FROM ED_DATE), SUBJECTS.SB_NAME
+    ) SB_CL ON
+      SB_CL_MAX.YEAR = SB_CL.YEAR 
+      AND SB_CL_MAX.MONTH = SB_CL.MONTH
+      AND SB_CL_MAX.MAX_CLASSES = SB_CL.CLASSES
+  GROUP BY SB_CL_MAX.YEAR, SB_CL_MAX.MONTH
+  ORDER BY SB_CL_MAX.MONTH DESC;
 
 ---9---
 SELECT st_id, st_name, avg_mark FROM (
@@ -114,10 +152,33 @@ HAVING AVG(EDUCATION.ED_MARK) > (SELECT AVG(EDUCATION.ED_MARK) FROM EDUCATION)
 ORDER BY SUBJECTS.SB_ID ASC;
 
 --13--
---???
+SELECT sb_id, sb_name, ROUND(COUNT(ed_subject) / MONTHS_BETWEEN(MAX(ed_date), MIN(ed_date)), 4) FROM education 
+JOIN subjects ON sb_id = ed_subject
+GROUP BY sb_id, sb_name
+ORDER BY sb_id;
 
 --14--
---???
+SELECT
+  students.st_id, students.st_name, subjects.sb_id, subjects.sb_name, ed.ed_mark as avg
+FROM students
+INNER JOIN
+  (SELECT education.ed_student, education.ed_subject, AVG(education.ed_mark) as ed_mark
+  FROM education
+  WHERE CONCAT(education.ed_student, education.ed_subject) NOT IN
+    (
+   	SELECT DISTINCT CONCAT (education.ed_student, education.ed_subject)
+    FROM education
+    WHERE education.ed_class_type = 2
+    ) 
+  GROUP BY
+    education.ed_student,
+    education.ed_subject
+  ) ed
+ON
+  ed.ed_student = students.st_id
+LEFT JOIN subjects
+ON subjects.sb_id = ed.ed_subject
+ORDER BY  ed.ed_mark asc;
 
 --15--
 select t.tt_id, t.tt_name, count(e.ed_subject)
@@ -214,10 +275,40 @@ GROUP BY TUTORS.TT_ID, TUTORS.TT_NAME
 ORDER BY TUTORS.TT_ID ASC;
 
 --24--
---???
+SELECT temp.st_name, temp.classes  
+FROM 
+	(
+	SELECT students.st_name, ed.classes
+  FROM
+    (
+    SELECT education.ed_student, COUNT(*) as classes
+    FROM education
+    GROUP BY education.ed_student
+    ) ed
+  LEFT JOIN students
+  ON students.st_id = ed.ed_student
+  ORDER BY
+    ed.classes desc
+  ) temp
+WHERE ROWNUM <= 1;
 
 --25--
---???
+SELECT   tutors.tt_name, subjects.sb_name, students.st_name, ed.max
+FROM 
+	(
+	SELECT education.ed_tutor, education.ed_subject, education.ed_student, MAX(education.ed_mark) AS max
+  FROM education
+  WHERE education.ed_mark IS NOT NULL
+  GROUP BY education.ed_tutor, education.ed_subject, education.ed_student 
+  ) ed
+LEFT JOIN tutors
+ON ed.ed_tutor = tutors.tt_id
+LEFT JOIN subjects
+ON ed.ed_subject = subjects.sb_id
+LEFT JOIN students
+ON ed.ed_student = students.st_id
+ORDER BY tutors.tt_id, subjects.sb_id,  students.st_id
+;
 
 --26--
 select st.st_name, sum(e.ed_mark)
